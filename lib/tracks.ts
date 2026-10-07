@@ -25,38 +25,17 @@ export const probe = (src: string) =>
     a.src = src;
   });
 
-/* ---------- Songs are saved in this browser (IndexedDB), no server needed ---------- */
-const open = () =>
-  new Promise<IDBDatabase>((res, rej) => {
-    const r = indexedDB.open('sanctuary', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('tracks', { keyPath: 'id' });
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
-
-async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  const db = await open();
-  return new Promise<T>((res, rej) => {
-    const q = fn(db.transaction('tracks', mode).objectStore('tracks'));
-    q.onsuccess = () => res(q.result);
-    q.onerror = () => rej(q.error);
-  });
-}
-
-export async function loadLocal(): Promise<Track[]> {
+/** Songs uploaded by the admin, shared with every visitor (empty list on any failure). */
+export async function loadUploaded(): Promise<Track[]> {
   try {
-    const rows = await run<any[]>('readonly', (s) => s.getAll());
-    return rows.map((r) => ({ ...r.meta, src: URL.createObjectURL(r.blob) })).sort((a, b) => a.number - b.number);
+    const r = await fetch('/api/tracks', { cache: 'no-store' });
+    const rows: Track[] = r.ok ? await r.json() : [];
+    return rows.sort((a, b) => a.number - b.number);
   } catch { return []; }
 }
 
-export const saveTrack = (meta: Omit<Track, 'src'>, file: File) =>
-  run('readwrite', (s) => s.put({ id: meta.id, meta, blob: file }));
-
-export const deleteTrack = (id: string) => run('readwrite', (s) => s.delete(id));
-
 export async function loadTracks(): Promise<Track[]> {
-  const mine = await loadLocal();
-  if (mine.length) return mine;
+  const real = await loadUploaded();
+  if (real.length) return real;
   return Promise.all(MOCK.map(async (t) => ({ ...t, duration: await probe(t.src) })));
 }

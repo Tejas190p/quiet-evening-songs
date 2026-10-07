@@ -19,7 +19,13 @@ export default function Home() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [ready, setReady] = useState(false);
   const [noPhoto, setNoPhoto] = useState(false);
-  useEffect(() => { loadTracks().then(setTracks).finally(() => setReady(true)); }, []);
+  useEffect(() => {
+    const load = () => loadTracks().then(setTracks).finally(() => setReady(true));
+    load();
+    const onShow = () => document.visibilityState === 'visible' && load();
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
   const a = useAudio(tracks);
   const current = tracks.find((t) => t.id === a.id);
 
